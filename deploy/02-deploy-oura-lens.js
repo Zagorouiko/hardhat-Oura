@@ -7,7 +7,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deployer } = await getNamedAccounts()
     
     const args = []
-    const OuraNFT = await deploy("OuraNFT", {
+    const OuraLens = await deploy("OuraLens", {
         from: deployer,
         args: args,
         log: true,
@@ -16,10 +16,10 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
 
     if (!developmentChains.includes(network.name) && process.env.POLYGONSCAN_API_KEY) {
         console.log("verifying...")
-        await verify(OuraNFT.address, args)
+        await verify(OuraLens.address, args)
     }
 
     log("_____________________________________________________________")
 }
 
-module.exports.tags = ["all", "ouranft", "main"]
+module.exports.tags = ["all", "ouralens", "main"]

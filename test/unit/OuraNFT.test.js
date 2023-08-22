@@ -1,13 +1,18 @@
 const { deployments, ethers, getNamedAccounts } = require("hardhat")
-const { developmentChains, networkConfig } = require("../helper-hardhat-config")
+const { developmentChains, networkConfig } = require("../../helper-hardhat-config")
 const { assert } = require("chai")
-const { createIPFSClient } = require("../utils/IPFSClient")
+const { createIPFSClient } = require("../../utils/IPFSClient")
 
 const uri = {
-        "name": "testdfghdfgh",
-        "description": "testdsfasdfasdfadf"
+        "name": "test",
+        "description": "test",
+        "token_ID": 1,
+        "sleep": "9.2",
+        "Reading_date": "5/31/2023",
     }
 
+
+// See how to run these tests on mumbai testnet, grab the already deployed contracts and use them here
 //Only runs locally
 !developmentChains.includes(network.name) ? describe.skip : 
 describe("OuraNFT Unit Tests", () => {

@@ -19,5 +19,8 @@
     "prettier-plugin-solidity": "^1.1.2",
     "solhint": "^3.4.0",
     "solidity-coverage": "^0.8.2"
+  },
+  "dependencies": {
+    "fs": "^0.0.1-security"
   }
 }

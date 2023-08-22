@@ -1,66 +1,100 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
 import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
+import "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "hardhat/console.sol";
+import "contracts/OuraNFT.sol";
 
-error OuraLens__UpkeepNotNeeded();
+// error OuraLens__UpkeepNotNeeded();
 
 // *** It looks like to fetch external API data I will need to use the ChainlinkClient: https://docs.chain.link/any-api/api-reference/
 
-    uint256 public enforcementActions;
-    address private oracle;
-    bytes32 private jobId;
+//REMEMBER TO FUND THIS CONTRACT WITH LINK
+
+contract OuraLens is ChainlinkClient, ConfirmedOwner {
+
+    using Chainlink for Chainlink.Request;
+
+    address public ouraNFTAddress = 0xEDAC0B97328983eAB2c05B765906fFA0D293f52E;
+    uint256 public volume;
+    bytes32 public jobId;
     uint256 private fee;
 
-contract OuraLens is AutomationCompatibleInterface, ChainlinkClient {
+    // minter addresses
+    address[] public ouraNFTOwners;
 
-    constructor() public {
-        setPublicChainlinkToken();
-        oracle = 0x2f90A6D021db21e1B2A077c5a37B3C7E75D15b7e; //grab these from chainlink this is based on response type - number will be different than string
-        jobId = "29fa9aa13bf1468788b7cc4a500a45b8"; //grab these these from chainlink
-        fee = 0.1 * 10 ** 18; // 0.1 LINK
+    mapping(address => bool) public ouraNFTOwnerExists;
+
+    event RequestVolume(bytes32 indexed requestId, uint256 volume);
+
+    //Mumbai testnet link token and testnet oracle contract addresses
+    constructor() ConfirmedOwner(msg.sender) {
+        setChainlinkToken(0x326C977E6efc84E512bB9C30f76E30c160eD06FB);
+        setChainlinkOracle(0x40193c8518BB267228Fc409a613bDbD8eC5a97b3);
+        jobId = "ca98366cc7314957b8c012c72f05aeeb";
+        fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
     }
 
-    function requestEnforcementData() public returns (bytes32 requestId) 
-    {
-        Chainlink.Request memory request = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
-    
-        request.add("get", "https://api.fda.gov/food/enforcement.json?search=report_date:[2015101+TO+20151231]&limit=1");
-        request.add("path", "meta.results.total");
-        return sendChainlinkRequestTo(oracle, request, fee);
-    }
+    //  * Create a Chainlink request to retrieve API response, find the target
+    function requestVolumeData(string memory endpoint) public returns (bytes32 requestId) {
+        Chainlink.Request memory req = buildChainlinkRequest(
+            jobId,
+            address(this),
+            this.fulfill.selector
+        );
 
-    function fulfill(bytes32 _requestId, uint256 _enforcementActions) public recordChainlinkFulfillment(_requestId)
-    {
-        enforcementActions = _enforcementActions;
-    }
+        // Set the URL to perform the GET request on
+        // Will need to get access code each time from the front-end and pass it into here
+        req.add(
+            "get",
+            endpoint
+        );
 
+        // Set the path to find the desired data in the API response, where the response format is:
+        // {"RAW":
+        //   {"ETH":
+        //    {"USD":
+        //     {
+        //      "VOLUME24HOUR": xxx.xxx,
+        //     }
+        //    }
+        //   }
+        //  }
+        // request.add("path", "RAW.ETH.USD.VOLUME24HOUR"); // Chainlink nodes prior to 1.0.0 support this format
+        req.add("path", "sleep,0,duration"); // Chainlink nodes 1.0.0 and later support this format
 
+        int256 timesAmount = 1;
+        req.addInt("times", timesAmount);
 
-    function checkUpkeep(bytes memory) public override returns (bool upkeepNeeded, bytes memory) {   
-        // Essentially I always want this to run every x time intervals (say every 24 hours)
-        // It will set upkeepNeeded to true only if the previous oura data nft fetched does not equal the current fetch
-        // Will have to fetch both and compare so as to not duplicate nfts
-        
-        upkeepNeeded = true;
+        // Sends the request
+        return sendChainlinkRequest(req, fee);
     }
 
     /**
-     * @dev Once `checkUpkeep` is returning `true`, this function is called
+     * Receive the response in the form of uint256
      */
-     // This function gets called off chain by the oracle nodes in a set time setup via cron
-     // Once upkeepneeded is true and proceeds through the rest of the code here, a new nft will need to be created
-     // 1. Set up Chainlink Keepers to ping this which will then create an OuraNFT and send it to my account every interval
-     // 2. Figure out how to first fetch data via smart contract (is that possible?)
+    function fulfill(
+        bytes32 _requestId,
+        uint256 _volume
+    ) public recordChainlinkFulfillment(_requestId) {
+        emit RequestVolume(_requestId, _volume);
+        volume = _volume;
+    }
 
-    function performUpkeep(bytes calldata) external override {
-        (bool upkeepNeeded, ) = checkUpkeep("");
-        // require(upkeepNeeded, "Upkeep not needed");
-        if (!upkeepNeeded) {
-            revert OuraLens__UpkeepNotNeeded();
-        }
+    //Need to read the volume on the front-end once the request comes back; Then create the IPFS uri with that volume value THEN run this function and pass the uri in
+    function mint(string memory uri) public {  
+        OuraNFT nft = OuraNFT(ouraNFTAddress);     
+        nft.safeMint(msg.sender, uri);
+        volume = 0;
+
+        if (ouraNFTOwnerExists[msg.sender] == false) {
+            ouraNFTOwners.push(msg.sender);
+            ouraNFTOwnerExists[msg.sender] = true;
+        }                    
+    }
+
+    function getouraNFTOwners() external view returns (address[] memory) {
+        return ouraNFTOwners;
     }
 }
