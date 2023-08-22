@@ -9,7 +9,6 @@ import "contracts/OuraNFT.sol";
 // error OuraLens__UpkeepNotNeeded();
 
 // *** It looks like to fetch external API data I will need to use the ChainlinkClient: https://docs.chain.link/any-api/api-reference/
-
 //REMEMBER TO FUND THIS CONTRACT WITH LINK
 
 contract OuraLens is ChainlinkClient, ConfirmedOwner {
@@ -63,7 +62,6 @@ contract OuraLens is ChainlinkClient, ConfirmedOwner {
         //  }
         // request.add("path", "RAW.ETH.USD.VOLUME24HOUR"); // Chainlink nodes prior to 1.0.0 support this format
         req.add("path", "sleep,0,duration"); // Chainlink nodes 1.0.0 and later support this format
-
         int256 timesAmount = 1;
         req.addInt("times", timesAmount);
 
